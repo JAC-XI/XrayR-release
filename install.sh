@@ -109,7 +109,7 @@ install_XrayR() {
     cd /usr/local/XrayR/
 
     # 直接从主分支 zip 包下载
-    echo -e "开始安装 XrayR 0.9.4 (从主分支)"
+    echo -e "开始安装 XrayR 0.9.5 (从主分支)"
     
     # 下载主分支 zip 包
     wget -q -N --no-check-certificate -O /usr/local/XrayR/XrayR-master.zip https://github.com/JAC-XI/XrayR/archive/refs/heads/master.zip
@@ -238,7 +238,7 @@ EOF
     systemctl daemon-reload
     systemctl stop XrayR
     systemctl enable XrayR
-    echo -e "${green}XrayR 0.9.4${plain} 安装完成，已设置开机自启"
+    echo -e "${green}XrayR 0.9.5${plain} 安装完成，已设置开机自启"
     
     # 复制数据文件到配置目录
     if [[ -f "geoip.dat" ]]; then
@@ -373,7 +373,7 @@ EOF
     echo "XrayR uninstall          - 卸载 XrayR"
     echo "XrayR version            - 查看 XrayR 版本"
     echo "------------------------------------------"
-    echo -e "${green}安装完成！当前版本: XrayR 0.9.4${plain}"
+    echo -e "${green}安装完成！当前版本: XrayR 0.9.5${plain}"
 }
 
 echo -e "${green}开始安装${plain}"
