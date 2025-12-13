@@ -106,33 +106,36 @@ install_XrayR() {
     fi
 
     mkdir /usr/local/XrayR/ -p
-	cd /usr/local/XrayR/
+    cd /usr/local/XrayR/
 
-    if  [ $# == 0 ] ;then
-        last_version=$(curl -Ls "https://api.github.com/repos/XrayR-project/XrayR/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-        if [[ ! -n "$last_version" ]]; then
-            echo -e "${red}检测 XrayR 版本失败，可能是超出 Github API 限制，请稍后再试，或手动指定 XrayR 版本安装${plain}"
-            exit 1
-        fi
-        echo -e "检测到 XrayR 最新版本：${last_version}，开始安装"
-        wget -q -N --no-check-certificate -O /usr/local/XrayR/XrayR-linux.zip https://github.com/XrayR-project/XrayR/releases/download/${last_version}/XrayR-linux-${arch}.zip
-        if [[ $? -ne 0 ]]; then
-            echo -e "${red}下载 XrayR 失败，请确保你的服务器能够下载 Github 的文件${plain}"
-            exit 1
-        fi
+    # 必须提供版本参数
+    if [ $# == 0 ]; then
+        echo -e "${red}错误：请指定要安装的 XrayR 版本号${plain}"
+        echo -e "使用方法：bash install.sh <版本号>"
+        echo -e "示例：bash install.sh v1.0.0 或 bash install.sh 1.0.0"
+        exit 1
+    fi
+
+    # 处理版本号格式
+    if [[ $1 == v* ]]; then
+        last_version=$1
     else
-        if [[ $1 == v* ]]; then
-            last_version=$1
-	else
-	    last_version="v"$1
-	fi
-        url="https://github.com/XrayR-project/XrayR/releases/download/${last_version}/XrayR-linux-${arch}.zip"
-        echo -e "开始安装 XrayR ${last_version}"
-        wget -q -N --no-check-certificate -O /usr/local/XrayR/XrayR-linux.zip ${url}
-        if [[ $? -ne 0 ]]; then
-            echo -e "${red}下载 XrayR ${last_version} 失败，请确保此版本存在${plain}"
-            exit 1
-        fi
+        last_version="v$1"
+    fi
+
+    echo -e "开始安装 XrayR ${last_version}"
+
+    # 从您的仓库下载指定版本
+    url="https://github.com/JAC-XI/XrayR/releases/download/${last_version}/XrayR-linux-${arch}.zip"
+    echo -e "下载地址: ${url}"
+    
+    wget -q -N --no-check-certificate -O /usr/local/XrayR/XrayR-linux.zip ${url}
+    if [[ $? -ne 0 ]]; then
+        echo -e "${red}下载 XrayR ${last_version} 失败，请确保：${plain}"
+        echo -e "1. 版本号 ${last_version} 存在于您的仓库中"
+        echo -e "2. 文件命名格式为: XrayR-linux-${arch}.zip"
+        echo -e "3. 您的网络可以访问 GitHub"
+        exit 1
     fi
 
     unzip XrayR-linux.zip
@@ -142,7 +145,6 @@ install_XrayR() {
     rm /etc/systemd/system/XrayR.service -f
     file="https://github.com/XrayR-project/XrayR-release/raw/master/XrayR.service"
     wget -q -N --no-check-certificate -O /etc/systemd/system/XrayR.service ${file}
-    #cp -f XrayR.service /etc/systemd/system/
     systemctl daemon-reload
     systemctl stop XrayR
     systemctl enable XrayR
@@ -153,7 +155,7 @@ install_XrayR() {
     if [[ ! -f /etc/XrayR/config.yml ]]; then
         cp config.yml /etc/XrayR/
         echo -e ""
-        echo -e "全新安装，请先参看教程：https://github.com/XrayR-project/XrayR，配置必要的内容"
+        echo -e "全新安装，请先参看教程配置必要的内容"
     else
         systemctl start XrayR
         sleep 2
@@ -162,7 +164,7 @@ install_XrayR() {
         if [[ $? == 0 ]]; then
             echo -e "${green}XrayR 重启成功${plain}"
         else
-            echo -e "${red}XrayR 可能启动失败，请稍后使用 XrayR log 查看日志信息，若无法启动，则可能更改了配置格式，请前往 wiki 查看：https://github.com/XrayR-project/XrayR/wiki${plain}"
+            echo -e "${red}XrayR 可能启动失败，请稍后使用 XrayR log 查看日志信息${plain}"
         fi
     fi
 
