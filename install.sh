@@ -187,10 +187,6 @@ install_XrayR() {
     # 返回安装目录
     cd ..
     
-    # 清理临时文件
-    rm -rf XrayR-master/
-    rm -f XrayR-master.zip
-
     # 创建配置目录
     mkdir /etc/XrayR/ -p
     
