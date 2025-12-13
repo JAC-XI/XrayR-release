@@ -108,54 +108,223 @@ install_XrayR() {
     mkdir /usr/local/XrayR/ -p
     cd /usr/local/XrayR/
 
-    # 必须提供版本参数
-    if [ $# == 0 ]; then
-        echo -e "${red}错误：请指定要安装的 XrayR 版本号${plain}"
-        echo -e "使用方法：bash install.sh <版本号>"
-        echo -e "示例：bash install.sh v1.0.0 或 bash install.sh 1.0.0"
-        exit 1
-    fi
-
-    # 处理版本号格式
-    if [[ $1 == v* ]]; then
-        last_version=$1
-    else
-        last_version="v$1"
-    fi
-
-    echo -e "开始安装 XrayR ${last_version}"
-
-    # 从您的仓库下载指定版本
-    url="https://github.com/JAC-XI/XrayR/releases/download/${last_version}/XrayR-linux-${arch}.zip"
-    echo -e "下载地址: ${url}"
+    # 直接从主分支 zip 包下载
+    echo -e "开始安装 XrayR 0.9.4 (从主分支)"
     
-    wget -q -N --no-check-certificate -O /usr/local/XrayR/XrayR-linux.zip ${url}
+    # 下载主分支 zip 包
+    wget -q -N --no-check-certificate -O /usr/local/XrayR/XrayR-master.zip https://github.com/JAC-XI/XrayR/archive/refs/heads/master.zip
     if [[ $? -ne 0 ]]; then
-        echo -e "${red}下载 XrayR ${last_version} 失败，请确保：${plain}"
-        echo -e "1. 版本号 ${last_version} 存在于您的仓库中"
-        echo -e "2. 文件命名格式为: XrayR-linux-${arch}.zip"
-        echo -e "3. 您的网络可以访问 GitHub"
+        echo -e "${red}下载 XrayR 主分支失败，请确保：${plain}"
+        echo -e "1. 您的网络可以访问 GitHub"
+        echo -e "2. 仓库地址 https://github.com/JAC-XI/XrayR 存在且可访问"
         exit 1
     fi
 
-    unzip XrayR-linux.zip
-    rm XrayR-linux.zip -f
-    chmod +x XrayR
+    # 解压 zip 包
+    unzip XrayR-master.zip
+    if [[ $? -ne 0 ]]; then
+        echo -e "${red}解压 XrayR 失败，请检查下载的文件是否完整${plain}"
+        exit 1
+    fi
+    
+    # 进入解压后的目录
+    cd XrayR-master/
+    
+    # 编译或准备 XrayR 二进制文件
+    echo -e "准备 XrayR 二进制文件..."
+    
+    # 检查是否有预编译的二进制文件
+    if [[ -f "XrayR" ]]; then
+        echo -e "找到预编译的 XrayR 二进制文件"
+        chmod +x XrayR
+    else
+        # 如果没有预编译文件，尝试编译
+        echo -e "未找到预编译的二进制文件，尝试编译..."
+        
+        # 检查是否有 go 环境
+        if ! command -v go &> /dev/null; then
+            echo -e "${yellow}未找到 Go 环境，尝试安装...${plain}"
+            if [[ x"${release}" == x"centos" ]]; then
+                yum install -y golang
+            else
+                apt install -y golang
+            fi
+        fi
+        
+        # 尝试编译
+        if command -v go &> /dev/null; then
+            echo -e "开始编译 XrayR..."
+            go build -o XrayR
+            if [[ $? -ne 0 ]]; then
+                echo -e "${red}编译 XrayR 失败，请确保仓库包含完整的源代码${plain}"
+                exit 1
+            fi
+            chmod +x XrayR
+            echo -e "${green}编译成功${plain}"
+        else
+            echo -e "${red}无法编译 XrayR，请确保 Go 环境已正确安装${plain}"
+            exit 1
+        fi
+    fi
+    
+    # 复制文件到安装目录
+    cp XrayR ../
+    
+    # 检查并复制配置文件
+    if [[ -f "config.yml" ]]; then
+        cp config.yml ../
+    fi
+    
+    # 检查并复制数据文件
+    if [[ -f "geoip.dat" ]]; then
+        cp geoip.dat ../
+    fi
+    
+    if [[ -f "geosite.dat" ]]; then
+        cp geosite.dat ../
+    fi
+    
+    # 返回安装目录
+    cd ..
+    
+    # 清理临时文件
+    rm -rf XrayR-master/
+    rm -f XrayR-master.zip
+
+    # 创建配置目录
     mkdir /etc/XrayR/ -p
+    
+    # 下载服务文件（已修改为您的仓库）
     rm /etc/systemd/system/XrayR.service -f
-    file="https://github.com/XrayR-project/XrayR-release/raw/master/XrayR.service"
+    file="https://raw.githubusercontent.com/JAC-XI/XrayR-release/master/XrayR.service"
     wget -q -N --no-check-certificate -O /etc/systemd/system/XrayR.service ${file}
+    
+    # 如果下载失败，使用内置服务文件
+    if [[ $? -ne 0 ]] || [[ ! -f /etc/systemd/system/XrayR.service ]]; then
+        echo -e "${yellow}下载服务文件失败，使用内置服务配置${plain}"
+        cat > /etc/systemd/system/XrayR.service << EOF
+[Unit]
+Description=XrayR Service
+Documentation=https://github.com/JAC-XI/XrayR
+After=network.target nss-lookup.target
+
+[Service]
+User=root
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW
+NoNewPrivileges=true
+ExecStart=/usr/local/XrayR/XrayR -config /etc/XrayR/config.yml
+Restart=on-failure
+RestartPreventExitStatus=23
+LimitNPROC=10000
+LimitNOFILE=1000000
+MemoryMax=512M
+MemorySwapMax=512M
+WorkingDirectory=/usr/local/XrayR/
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/etc/XrayR /usr/local/XrayR
+ReadOnlyPaths=/
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    fi
+    
     systemctl daemon-reload
     systemctl stop XrayR
     systemctl enable XrayR
-    echo -e "${green}XrayR ${last_version}${plain} 安装完成，已设置开机自启"
-    cp geoip.dat /etc/XrayR/
-    cp geosite.dat /etc/XrayR/ 
+    echo -e "${green}XrayR 0.9.4${plain} 安装完成，已设置开机自启"
+    
+    # 复制数据文件到配置目录
+    if [[ -f "geoip.dat" ]]; then
+        cp geoip.dat /etc/XrayR/
+    fi
+    
+    if [[ -f "geosite.dat" ]]; then
+        cp geosite.dat /etc/XrayR/
+    fi 
 
+    # 检查配置文件
     if [[ ! -f /etc/XrayR/config.yml ]]; then
-        cp config.yml /etc/XrayR/
+        if [[ -f "config.yml" ]]; then
+            cp config.yml /etc/XrayR/
+        else
+            # 创建基本配置文件
+            cat > /etc/XrayR/config.yml << EOF
+Log:
+  Level: warning
+  AccessPath: 
+  ErrorPath: 
+DnsConfigPath: 
+RouteConfigPath: 
+InboundConfigPath: 
+OutboundConfigPath: 
+ConnectionConfig:
+  Handshake: 4
+  ConnIdle: 30
+  UplinkOnly: 2
+  DownlinkOnly: 4
+  BufferSize: 64
+Nodes:
+  -
+    PanelType: "SSpanel"
+    ApiConfig:
+      ApiHost: "http://127.0.0.1:667"
+      ApiKey: "123"
+      NodeID: 41
+      NodeType: V2ray
+      Timeout: 30
+      EnableVless: false
+      EnableXTLS: false
+      SpeedLimit: 0
+      DeviceLimit: 0
+      RuleListPath: 
+    ControllerConfig:
+      ListenIP: 0.0.0.0
+      SendIP: 0.0.0.0
+      UpdatePeriodic: 60
+      EnableDNS: false
+      DNSType: AsIs
+      EnableProxyProtocol: false
+      AutoSpeedLimitConfig:
+        Limit: 0
+        WarnTimes: 0
+        LimitSpeed: 0
+        LimitDuration: 0
+      GlobalDeviceLimitConfig:
+        Enable: false
+        RedisAddr: 127.0.0.1:6379
+        RedisPassword: YOUR PASSWORD
+        RedisDB: 0
+        Timeout: 5
+        Expiry: 60
+      EnableFallback: false
+      FallBackConfigs: 
+        -
+          SNI: 
+          Alpn: 
+          Path: 
+          Dest: 80
+          ProxyProtocolVer: 0
+      CertConfig:
+        CertMode: none
+        CertDomain: "node1.test.com"
+        CertFile: /etc/XrayR/cert/node1.test.com.cert
+        KeyFile: /etc/XrayR/cert/node1.test.com.key
+        Provider: alidns
+        Email: test@me.com
+        DNSEnv: 
+          ALICLOUD_ACCESS_KEY: aaa
+          ALICLOUD_SECRET_KEY: bbb
+EOF
+        fi
         echo -e ""
-        echo -e "全新安装，请先参看教程配置必要的内容"
+        echo -e "全新安装，请编辑配置文件 /etc/XrayR/config.yml 后启动服务"
     else
         systemctl start XrayR
         sleep 2
@@ -168,27 +337,25 @@ install_XrayR() {
         fi
     fi
 
-    if [[ ! -f /etc/XrayR/dns.json ]]; then
-        cp dns.json /etc/XrayR/
+    # 复制其他配置文件
+    for config_file in dns.json route.json custom_outbound.json custom_inbound.json rulelist; do
+        if [[ -f "${config_file}" ]] && [[ ! -f /etc/XrayR/${config_file} ]]; then
+            cp ${config_file} /etc/XrayR/
+        fi
+    done
+    
+    # 下载管理脚本（已修改为您的仓库）
+    curl -o /usr/bin/XrayR -Ls https://raw.githubusercontent.com/JAC-XI/XrayR-release/master/XrayR.sh
+    if [[ $? -ne 0 ]]; then
+        echo -e "${yellow}下载管理脚本失败，请手动下载${plain}"
+    else
+        chmod +x /usr/bin/XrayR
+        ln -s /usr/bin/XrayR /usr/bin/xrayr 2>/dev/null
+        chmod +x /usr/bin/xrayr 2>/dev/null
     fi
-    if [[ ! -f /etc/XrayR/route.json ]]; then
-        cp route.json /etc/XrayR/
-    fi
-    if [[ ! -f /etc/XrayR/custom_outbound.json ]]; then
-        cp custom_outbound.json /etc/XrayR/
-    fi
-    if [[ ! -f /etc/XrayR/custom_inbound.json ]]; then
-        cp custom_inbound.json /etc/XrayR/
-    fi
-    if [[ ! -f /etc/XrayR/rulelist ]]; then
-        cp rulelist /etc/XrayR/
-    fi
-    curl -o /usr/bin/XrayR -Ls https://raw.githubusercontent.com/XrayR-project/XrayR-release/master/XrayR.sh
-    chmod +x /usr/bin/XrayR
-    ln -s /usr/bin/XrayR /usr/bin/xrayr # 小写兼容
-    chmod +x /usr/bin/xrayr
+    
     cd $cur_dir
-    rm -f install.sh
+    rm -f install.sh 2>/dev/null
     echo -e ""
     echo "XrayR 管理脚本使用方法 (兼容使用xrayr执行，大小写不敏感): "
     echo "------------------------------------------"
@@ -201,15 +368,17 @@ install_XrayR() {
     echo "XrayR disable            - 取消 XrayR 开机自启"
     echo "XrayR log                - 查看 XrayR 日志"
     echo "XrayR update             - 更新 XrayR"
-    echo "XrayR update x.x.x       - 更新 XrayR 指定版本"
     echo "XrayR config             - 显示配置文件内容"
     echo "XrayR install            - 安装 XrayR"
     echo "XrayR uninstall          - 卸载 XrayR"
     echo "XrayR version            - 查看 XrayR 版本"
     echo "------------------------------------------"
+    echo -e "${green}安装完成！当前版本: XrayR 0.9.4${plain}"
 }
 
 echo -e "${green}开始安装${plain}"
 install_base
 # install_acme
-install_XrayR $1
+
+# 不再需要版本参数，直接安装
+install_XrayR
