@@ -127,70 +127,86 @@ install_XrayR() {
         exit 1
     fi
     
-    # 进入解压后的目录
+    # 进入解压后的目录（第一层目录）
     cd XrayR-master/
     
-    # 编译或准备 XrayR 二进制文件
-    echo -e "准备 XrayR 二进制文件..."
+    # 查找并进入项目目录
+    # GitHub的zip包解压后通常有两层目录，需要进入项目目录
+    echo -e "查找项目目录..."
     
-    # 检查是否有预编译的二进制文件
+    # 检查当前目录下是否有子目录，如果有则进入第一个找到的目录
+    project_dir=""
+    for dir in */; do
+        if [[ -d "$dir" ]]; then
+            project_dir="$dir"
+            break
+        fi
+    done
+    
+    if [[ -n "$project_dir" ]]; then
+        echo -e "进入项目目录: $project_dir"
+        cd "$project_dir"
+    else
+        echo -e "${yellow}未找到子目录，假设当前目录即为项目目录${plain}"
+    fi
+    
+    echo -e "当前目录: $(pwd)"
+    
+    # 查找 XrayR 可执行文件
+    echo -e "查找 XrayR 可执行文件..."
+    
+    # 优先查找预编译的二进制文件
     if [[ -f "XrayR" ]]; then
         echo -e "找到预编译的 XrayR 二进制文件"
         chmod +x XrayR
+        cp XrayR ../../
+    elif [[ -f "xrayr" ]]; then
+        echo -e "找到 xrayr 可执行文件"
+        chmod +x xrayr
+        cp xrayr ../../XrayR
+    elif [[ -f "XrayR.exe" ]]; then
+        echo -e "找到 XrayR.exe 文件"
+        cp XrayR.exe ../../XrayR
+        chmod +x ../../XrayR
     else
-        # 如果没有预编译文件，尝试编译
-        echo -e "未找到预编译的二进制文件，尝试编译..."
-        
-        # 检查是否有 go 环境
-        if ! command -v go &> /dev/null; then
-            echo -e "${yellow}未找到 Go 环境，尝试安装...${plain}"
-            if [[ x"${release}" == x"centos" ]]; then
-                yum install -y golang
-            else
-                apt install -y golang
-            fi
-        fi
-        
-        # 尝试编译
-        if command -v go &> /dev/null; then
-            echo -e "开始编译 XrayR..."
-            go build -o XrayR
-            if [[ $? -ne 0 ]]; then
-                echo -e "${red}编译 XrayR 失败，请确保仓库包含完整的源代码${plain}"
-                exit 1
-            fi
-            chmod +x XrayR
-            echo -e "${green}编译成功${plain}"
-        else
-            echo -e "${red}无法编译 XrayR，请确保 Go 环境已正确安装${plain}"
-            exit 1
-        fi
+        echo -e "${red}错误：${plain} 在项目目录中未找到 XrayR 可执行文件"
+        echo -e "请确保主分支包中包含 XrayR 二进制文件"
+        echo -e "当前目录内容:"
+        ls -la
+        exit 1
     fi
-    
-    # 复制文件到安装目录
-    cp XrayR ../
     
     # 检查并复制配置文件
     if [[ -f "config.yml" ]]; then
-        cp config.yml ../
+        cp config.yml ../../
     fi
     
     # 检查并复制数据文件
     if [[ -f "geoip.dat" ]]; then
-        cp geoip.dat ../
+        cp geoip.dat ../../
+    else
+        # 如果项目目录中没有geoip.dat，则从其他源下载
+        echo -e "下载 geoip.dat 文件..."
+        wget -q -N --no-check-certificate -O ../../geoip.dat \
+            https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat
     fi
     
     if [[ -f "geosite.dat" ]]; then
-        cp geosite.dat ../
+        cp geosite.dat ../../
+    else
+        # 如果项目目录中没有geosite.dat，则从其他源下载
+        echo -e "下载 geosite.dat 文件..."
+        wget -q -N --no-check-certificate -O ../../geosite.dat \
+            https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat
     fi
     
     # 返回安装目录
-    cd ..
+    cd ../..
     
     # 创建配置目录
     mkdir /etc/XrayR/ -p
     
-    # 下载服务文件（已修改为您的仓库）
+    # 下载服务文件
     rm /etc/systemd/system/XrayR.service -f
     file="https://raw.githubusercontent.com/JAC-XI/XrayR-release/master/XrayR.service"
     wget -q -N --no-check-certificate -O /etc/systemd/system/XrayR.service ${file}
@@ -340,7 +356,7 @@ EOF
         fi
     done
     
-    # 下载管理脚本（已修改为您的仓库）
+    # 下载管理脚本
     curl -o /usr/bin/XrayR -Ls https://raw.githubusercontent.com/JAC-XI/XrayR-release/master/XrayR.sh
     if [[ $? -ne 0 ]]; then
         echo -e "${yellow}下载管理脚本失败，请手动下载${plain}"
