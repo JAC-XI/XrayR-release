@@ -161,6 +161,21 @@ install_XrayR() {
             fi
             chmod +x XrayR
             echo -e "${green}编译成功${plain}"
+            
+            # 保存编译成功的二进制文件
+            echo -e "${yellow}保存编译成功的二进制文件...${plain}"
+            # 创建保存目录
+            mkdir -p "${cur_dir}/compiled_binaries"
+            # 生成带时间戳的文件名
+            timestamp=$(date +%Y%m%d_%H%M%S)
+            # 复制二进制文件到保存目录
+            cp XrayR "${cur_dir}/compiled_binaries/XrayR_${arch}_${timestamp}"
+            # 创建最新版本符号链接
+            ln -sf "${cur_dir}/compiled_binaries/XrayR_${arch}_${timestamp}" "${cur_dir}/compiled_binaries/XrayR_${arch}_latest"
+            
+            echo -e "${green}编译成功的二进制文件已保存到: ${cur_dir}/compiled_binaries/${plain}"
+            echo -e "${green}文件名: XrayR_${arch}_${timestamp}${plain}"
+            echo -e "${green}最新版本链接: XrayR_${arch}_latest${plain}"
         else
             echo -e "${red}无法编译 XrayR，请确保 Go 环境已正确安装${plain}"
             exit 1
